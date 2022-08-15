@@ -10,6 +10,7 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.runner.RunWith;
 
 import java.util.List;
@@ -61,7 +62,12 @@ public class PackagingTest {
                     .resideInAPackage("..api")
                     .should(accessClassesThatResideInOtherPackageInternalPackage());
 
-    private static ArchCondition<JavaClass> accessClassesThatResideInOtherPackageInternalPackage(){
+    @ArchTest
+    public static ArchRule classes_do_not_depend_on_packages_within_other_packages =
+            noClasses()
+                    .should(accessClassesTooDeepInOtherPackages());
+
+    private static ArchCondition<JavaClass> accessClassesThatResideInOtherPackageInternalPackage() {
         return new ArchCondition<>("access other internal packages") {
             @Override
             public void check(final JavaClass clazz, final ConditionEvents events) {
@@ -101,5 +107,34 @@ public class PackagingTest {
 
     private static String addInternalPackageNamePart(String packageName) {
         return packageName + INTERNAL_PACKAGE_SUFFIX;
+    }
+
+    private static ArchCondition<JavaClass> accessClassesTooDeepInOtherPackages() {
+        return new ArchCondition<>("access not api") {
+            @Override
+            public void check(final JavaClass clazz, final ConditionEvents events) {
+                var myPackageInternalPackage = addInternalPackageNamePart(stripApiPackageNamePart(clazz.getPackageName()));
+                final List<Dependency> dependenciesInOtherPackagesInternalPackage = clazz.getDirectDependenciesFromSelf().stream()
+                        .filter(it -> !it.getTargetClass().getPackageName().isEmpty())
+                        .filter(it -> isTooDeepInDependency(clazz.getPackageName(), it.getTargetClass().getPackageName()))
+                        .collect(toList());
+                final boolean satisfied = !dependenciesInOtherPackagesInternalPackage.isEmpty();
+
+                final StringBuilder messageBuilder = new StringBuilder(format("%s to other packages' non-api package found within class %s",
+                        satisfied ? "Access" : "No access",
+                        clazz.getName()));
+                for (Dependency dependency : dependenciesInOtherPackagesInternalPackage) {
+                    messageBuilder.append(lineSeparator()).append(dependency.getDescription());
+                }
+
+                events.add(new SimpleConditionEvent(clazz, satisfied, messageBuilder.toString()));
+            }
+        };
+    }
+
+    private static boolean isTooDeepInDependency(String myPackage, String dependencyPackage) {
+        var commonPart = StringUtils.getCommonPrefix(myPackage, dependencyPackage);
+        var dependencyPackageDifference = StringUtils.stripStart(dependencyPackage, commonPart);
+        return dependencyPackageDifference.split("\\.").length > 2;
     }
 }
