@@ -39,7 +39,7 @@ public class PackagingTest {
                     .resideInAnyPackage("..api", "..internal");
 
     @ArchTest
-    public static ArchRule api_packages_do_not_contain_other_packages =
+    public static ArchRule api_packages_are_not_in_other_api_or_internal_packages =
             classes()
                     .that()
                     .resideInAPackage("..api")
@@ -47,7 +47,7 @@ public class PackagingTest {
                     .resideOutsideOfPackages("..internal..api", "..api..api");
 
     @ArchTest
-    public static ArchRule internal_packages_do_not_contain_other_packages =
+    public static ArchRule internal_packages_are_not_in_other_api_or_internal_packages =
             classes()
                     .that()
                     .resideInAPackage("..internal")
